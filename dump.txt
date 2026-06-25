@@ -1,0 +1,2941 @@
+import 'welcome_page.dart';
+
+class AdminHomePage extends StatefulWidget {
+  const AdminHomePage({super.key});
+
+  @override
+  State<AdminHomePage> createState() => _AdminHomePageState();
+}
+
+class _AdminHomePageState extends State<AdminHomePage> {
+  int _selectedIndex = 0;
+  List<Map<String, String>> inventoryListings = [];
+
+  String get _userName {
+    final user = Supabase.instance.client.auth.currentUser;
+    return user?.userMetadata?['fullName'] ?? 'Admin Worker';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    bool isDesktop = MediaQuery.of(context).size.width > 800;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF9F9F9),
+      appBar: _selectedIndex == 0
+          ? AppBar(
+              backgroundColor: const Color(0xFFF9F9F9),
+              elevation: 0,
+              automaticallyImplyLeading: false,
+              centerTitle: true,
+              title: const Text(
+                'Bookstore Inventory',
+                style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+              ),
+            )
+          : null,
+      
+      body: isDesktop
+          ? Row(
+              children: [
+                NavigationRail(
+                  backgroundColor: Colors.white,
+                  selectedIndex: _selectedIndex,
+                  onDestinationSelected: (int index) {
+                    setState(() {
+                      _selectedIndex = index;
+                    });
+                  },
+                  labelType: NavigationRailLabelType.all,
+                  selectedIconTheme: const IconThemeData(color: Color(0xFF0038FF)),
+                  selectedLabelTextStyle: const TextStyle(color: Color(0xFF0038FF), fontWeight: FontWeight.bold),
+                  destinations: const [
+                    NavigationRailDestination(
+                      icon: Icon(Icons.inventory_2_outlined),
+                      selectedIcon: Icon(Icons.inventory_2),
+                      label: Text('Inventory'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.person_outline),
+                      selectedIcon: Icon(Icons.person),
+                      label: Text('Profile'),
+                    ),
+                  ],
+                  trailing: Expanded(
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 24.0),
+                        child: FloatingActionButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const AddListingPage(),
+                              ),
+                            );
+                          },
+                          backgroundColor: const Color(0xFF0038FF),
+                          elevation: 0,
+                          child: const Icon(Icons.add_box_outlined, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const VerticalDivider(thickness: 1, width: 1, color: Colors.black12),
+                Expanded(
+                  child: IndexedStack(
+                    index: _selectedIndex,
+                    children: [
+                      _buildInventoryView(),
+                      _buildProfileView(),
+                    ],
+                  ),
+                ),
+              ],
+            )
+          : IndexedStack(
+              index: _selectedIndex,
+              children: [
+                _buildInventoryView(),
+                _buildProfileView(),
+              ],
+            ),
+
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButton: isDesktop ? null : Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0038FF).withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: FloatingActionButton(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const AddListingPage(),
+              ),
+            );
+          },
+          backgroundColor: const Color(0xFF0038FF),
+          elevation: 0,
+          child: const Icon(Icons.add_box_outlined, color: Colors.white),
+        ),
+      ),
+      bottomNavigationBar: isDesktop ? null : BottomAppBar(
+        color: Colors.white,
+        shape: const CircularNotchedRectangle(),
+        notchMargin: 8.0,
+        child: SizedBox(
+          height: 60.0,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: <Widget>[
+              IconButton(
+                icon: Icon(
+                  Icons.inventory_2_outlined,
+                  color: _selectedIndex == 0 ? Colors.black : Colors.black45,
+                ),
+                onPressed: () => setState(() => _selectedIndex = 0),
+              ),
+              const SizedBox(width: 48), // Empty space for the FAB
+              IconButton(
+                icon: Icon(
+                  Icons.person_outline,
+                  color: _selectedIndex == 1 ? Colors.black : Colors.black45,
+                ),
+                onPressed: () => setState(() => _selectedIndex = 1),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInventoryView() {
+    if (inventoryListings.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.inventory_2_outlined, size: 100, color: Colors.black26),
+            const SizedBox(height: 24),
+            const Text(
+              'No Inventory Yet',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Tap the + button to add the first textbook\nto the UTeM Book Thrift store.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: Colors.black54),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: _buildTextbookGrid(inventoryListings),
+      ),
+    );
+  }
+
+  Widget _buildProfileView() {
+    final userEmail = Supabase.instance.client.auth.currentUser?.email ?? 'admin@utem.edu.my';
+    
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Admin Profile',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+            ),
+            const SizedBox(height: 24),
+            Column(
+              children: [
+                const CircleAvatar(
+                  radius: 40,
+                  backgroundColor: Colors.black12,
+                  child: Icon(Icons.admin_panel_settings, size: 50, color: Colors.white),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  _userName,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  userEmail,
+                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0038FF).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Text(
+                    'Bookstore Admin',
+                    style: TextStyle(color: Color(0xFF0038FF), fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const EditProfilePage(),
+                      ),
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    side: const BorderSide(color: Colors.black26),
+                    padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 8),
+                  ),
+                  child: const Text('Edit Profile', style: TextStyle(fontSize: 12, color: Colors.black87)),
+                ),
+                const SizedBox(height: 16),
+                TextButton.icon(
+                  onPressed: () async {
+                    await Supabase.instance.client.auth.signOut();
+                    if (context.mounted) {
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(builder: (context) => const WelcomePage()),
+                        (route) => false,
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.logout, color: Colors.redAccent, size: 18),
+                  label: const Text(
+                    'Log Out',
+                    style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextbookGrid(List<Map<String, String>> displayBooks) {
+    bool isDesktop = MediaQuery.of(context).size.width > 800;
+    int crossAxisCount = isDesktop ? 4 : 2;
+
+    return GridView.builder(
+      physics: const NeverScrollableScrollPhysics(),
+      shrinkWrap: true,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        childAspectRatio: 0.65,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+      ),
+      itemCount: displayBooks.length,
+      itemBuilder: (context, index) {
+        final book = displayBooks[index];
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.black12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                  child: Container(
+                    color: Colors.black12,
+                    width: double.infinity,
+                    child: const Icon(Icons.menu_book, color: Colors.white, size: 50),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      book['title'] ?? '',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+�U (9! -$?94<>'>0"80!!'V 117".:Tr(/>=0/88.&"9&F5*,'1N!D(ZV'+ -+%'%O:#"?*%!>4J	<1> .NED(NE	!%7V("b'\+E	"-6	_O:b($3Z,l+O+T-E=%'k, "$)G3[CVl,!(C+4!V*U%\	F>,5?( 	&&*%!57:"W$+,W5@+Y#7	2package:utem_book_thrift/view/admin_home_page.dart*���������˃����x���ŃՃ؂��ڃу�5���܃��߃��S�΃Ѓ僁�e�����,���������Sfile:///C:/Users/User/Documents/Y3S2/FYP/utem_book_thrift/lib/view/browse_page.dart�?import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'login_signup_page.dart';
+
+class BrowsePage extends StatefulWidget {
+  const BrowsePage({super.key});
+
+  @override
+  State<BrowsePage> createState() => _BrowsePageState();
+}
+
+class _BrowsePageState extends State<BrowsePage> {
+  // Dummy Data for Filters
+  String selectedCategory = 'All';
+  String selectedCondition = 'All';
+  String selectedMode = 'All';
+
+  final List<String> categories = ['All', 'Electronics', 'Mobiles', 'Books & Study Materials', 'Lab Equipment', 'Graphic Tools'];
+  final List<String> conditions = ['All', 'New', 'Good', 'Usable'];
+  final List<String> modes = ['All', 'Donate', 'Exchange', 'Request', 'Recycle'];
+
+  // Dummy Books
+  final List<Map<String, dynamic>> books = [
+    {
+      'title': 'Database Design',
+      'price': 'RM 25',
+      'coverUrl': 'https://picsum.photos/seed/book1/400/300',
+      'sellerName': 'Derek Watakovski',
+      'condition': 'Good',
+    },
+    {
+      'title': 'Software Engineering',
+      'price': 'RM 35',
+      'coverUrl': 'https://picsum.photos/seed/book2/400/300',
+      'sellerName': 'Jenny Lee',
+      'condition': 'New',
+    },
+    {
+      'title': 'Data Structure',
+      'price': 'RM 15',
+      'coverUrl': 'https://picsum.photos/seed/book3/400/300',
+      'sellerName': 'Derek Watakovski',
+      'condition': 'Usable',
+    },
+    {
+      'title': 'Philosophy',
+      'price': 'RM 20',
+      'coverUrl': 'https://picsum.photos/seed/book4/400/300',
+      'sellerName': 'Jenny Lee',
+      'condition': 'Good',
+    },
+  ];
+
+  void _requireAuth(VoidCallback onAuthenticated) {
+    if (Supabase.instance.client.auth.currentUser != null) {
+      onAuthenticated();
+    } else {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Login Required'),
+          content: const Text('You need to be logged in to perform this action.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginSignupPage()),
+                );
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF023E8A), foregroundColor: Colors.white),
+              child: const Text('Login'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    bool isDesktop = MediaQuery.of(context).size.width > 800;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF9F9F9),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        automaticallyImplyLeading: false, // Custom back button on logo
+        title: Row(
+          children: [
+            // Logo that acts as Home button
+            MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Image.asset(
+                  'assets/images/logo.png',
+                  height: 40,
+                  errorBuilder: (c, e, s) => const Text('UTeM Book Thrift', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 40),
+            // Search Bar
+            if (isDesktop)
+              Expanded(
+                child: Center(
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 600),
+                    height: 40,
+                    child: TextField(
+                      decoration: InputDecoration(
+                        hintText: 'What are you looking for?',
+                        hintStyle: const TextStyle(color: Colors.black45, fontSize: 14),
+                        prefixIcon: const Icon(Icons.search, color: Colors.black45),
+                        suffixIcon: const Icon(Icons.camera_alt_outlined, color: Colors.black45),
+                        filled: true,
+                        fillColor: const Color(0xFFF0F2F5),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            else
+              const Spacer(),
+            if (isDesktop) const SizedBox(width: 40),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_outline, color: Colors.black87),
+            onPressed: () => _requireAuth(() {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile opened!')));
+            }),
+          ),
+          IconButton(
+            icon: const Icon(Icons.favorite_border, color: Colors.black87),
+            onPressed: () => _requireAuth(() {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Wishlist opened!')));
+            }),
+          ),
+          IconButton(
+            icon: const Icon(Icons.shopping_bag_outlined, color: Colors.black87),
+            onPressed: () => _requireAuth(() {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cart opened!')));
+            }),
+          ),
+          const SizedBox(width: 16),
+        ],
+      ),
+      body: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Sidebar Filters
+          if (isDesktop) _buildSidebar(),
+          // Main Grid
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Browse Textbooks', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87)),
+                  const SizedBox(height: 8),
+                  Text('${books.length} items available', style: const TextStyle(fontSize: 14, color: Colors.black54)),
+                  const SizedBox(height: 24),
+                  Expanded(
+                    child: _buildGrid(isDesktop),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSidebar() {
+    return Container(
+      width: 250,
+      color: Colors.white,
+      padding: const EdgeInsets.all(24.0),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.tune, size: 20, color: Colors.black87),
+                const SizedBox(width: 8),
+                const Text('Filters', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+              ],
+            ),
+            const SizedBox(height: 32),
+            _buildFilterSection('Category', categories, selectedCategory, (v) => setState(() => selectedCategory = v)),
+            const SizedBox(height: 24),
+            _buildFilterSection('Condition', conditions, selectedCondition, (v) => setState(() => selectedCondition = v)),
+            const SizedBox(height: 24),
+            _buildFilterSection('Mode', modes, selectedMode, (v) => setState(() => selectedMode = v)),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () {
+                  setState(() {
+                    selectedCategory = 'All';
+                    selectedCondition = 'All';
+                    selectedMode = 'All';
+                  });
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.black87,
+                  side: const BorderSide(color: Colors.black26),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: const Text('Reset Filters'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterSection(String title, List<String> options, String selectedValue, Function(String) onSelect) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87)),
+        const SizedBox(height: 12),
+        ...options.map((option) {
+          bool isSelected = option == selectedValue;
+          return InkWell(
+            onTap: () => onSelect(option),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+              margin: const EdgeInsets.only(bottom: 4),
+              decoration: BoxDecoration(
+                color: isSelected ? const Color(0xFFE8F5E9) : Colors.transparent, // Soft green/blue
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    option,
+                    style: TextStyle(
+                      color: isSelected ? const Color(0xFF2E7D32) : Colors.black87,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ],
+    );
+  }
+
+  Widget _buildGrid(bool isDesktop) {
+    return GridView.builder(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: isDesktop ? 3 : 2, // Adjusted to 3 to account for sidebar space
+        childAspectRatio: 0.7,
+        crossAxisSpacing: 24,
+        mainAxisSpacing: 24,
+      ),
+      itemCount: books.length,
+      itemBuilder: (context, index) {
+        final book = books[index];
+        return _buildBookCard(book);
+      },
+    );
+  }
+
+  Widget _buildBookCard(Map<String, dynamic> book) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.black12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Image
+          Expanded(
+            child: Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.only(topLeft: Radius.circular(12), topRight: Radius.circular(12)),
+                  child: Image.network(
+                    book['coverUrl'],
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.favorite_border, size: 20, color: Colors.black45),
+                      constraints: const BoxConstraints(),
+                      padding: const EdgeInsets.all(8),
+                      onPressed: () => _requireAuth(() {}),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Details
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        book['title'],
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F5E9),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(book['condition'], style: const TextStyle(color: Color(0xFF2E7D32), fontSize: 10, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(book['price'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF023E8A))),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => _requireAuth(() {}),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFF0F2F5),
+                      foregroundColor: Colors.black87,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text('Add to Bag', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+�~ (9!*!93#$��DR-">('>!!>(>!4=+/S7+( Tx*	'>0'H-0&5$,��'$F &3?YUb&<az6K/lL/mR/i%	6*3>��-x.2	+$8I*{(x({(g(&%  ./*13AYE4	t4o$"5+4Q8)e8&TT$	&?Y	&#%	5!13	6v(&,'$5+.'`;8<1<E#'r%9W18@��+��,*):5@7$]Id	.package:utem_book_thrift/view/browse_page.dart#���클�x���ŀԁ���������˂S�΃Ѓ��������Ȅ �1����у��������Qfile:///C:/Users/User/Documents/Y3S2/FYP/utem_book_thrift/lib/view/cart_page.dart�import 'package:flutter/material.dart';
+
+class CartPage extends StatefulWidget {
+  const CartPage({super.key});
+
+  @override
+  State<CartPage> createState() => _CartPageState();
+}
+
+class _CartPageState extends State<CartPage> {
+  // Dummy cart items. Remove these to test the empty state.
+  List<Map<String, dynamic>> cartItems = [
+    {
+      'id': '1',
+      'title': 'Database Design',
+      'sellerName': 'Derek Watakovski',
+      'coverUrl': 'https://picsum.photos/seed/book1/400/300',
+      'price': 25.00,
+      'isSelected': true,
+    },
+    {
+      'id': '2',
+      'title': 'Software Engineering',
+      'sellerName': 'Jenny Lee',
+      'coverUrl': 'https://picsum.photos/seed/book2/400/300',
+      'price': 35.50,
+      'isSelected': true,
+    },
+  ];
+
+  double get subtotal {
+    return cartItems
+        .where((item) => item['isSelected'] == true)
+        .fold(0, (sum, item) => sum + (item['price'] as double));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF9F9F9),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFF9F9F9),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'My Bag',
+          style: TextStyle(
+            color: Colors.black87,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        centerTitle: false,
+        titleSpacing: 0,
+      ),
+      body: cartItems.isEmpty ? _buildEmptyState() : _buildCartList(),
+      bottomNavigationBar: cartItems.isEmpty ? null : _buildCheckoutBar(),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.shopping_bag_outlined,
+              size: 100,
+              color: Colors.black26,
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Your bag is empty',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Looks like you haven\'t added any textbooks to your bag yet.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.black54,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 48),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context); // Go back to home
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0038FF),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  elevation: 0,
+                ),
+                child: const Text(
+                  'Start Exploring',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCartList() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(24.0),
+      itemCount: cartItems.length,
+      itemBuilder: (context, index) {
+        final item = cartItems[index];
+        return _buildCartItemCard(item, index);
+      },
+    );
+  }
+
+  Widget _buildCartItemCard(Map<String, dynamic> item, int index) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Selection Checkbox
+            Checkbox(
+              value: item['isSelected'] ?? true,
+              onChanged: (bool? value) {
+                setState(() {
+                  item['isSelected'] = value ?? false;
+                });
+              },
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+              activeColor: const Color(0xFF0038FF),
+              side: const BorderSide(color: Colors.black26, width: 1.5),
+            ),
+            // Thumbnail
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                item['coverUrl'],
+                width: 70,
+                height: 90,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(width: 16),
+            // Details
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item['title'],
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    item['sellerName'],
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.black54,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'RM ${item['price'].toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0038FF), // Primary blue
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Delete button
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+              onPressed: () {
+                setState(() {
+                  cartItems.removeAt(index);
+                });
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCheckoutBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
+          ),
+        ],
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
+      ),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Total',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.black54,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  'RM ${subtotal.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  // TODO: Implement Checkout logic
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Proceeding to checkout!'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0038FF),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 0,
+                ),
+                child: const Text(
+                  'Checkout',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+�5 ((5/=+"(>'!>5B'02E3#)	GK-7+%(# -'(N+ '(&% =1<1E1< #%$"1	+#&'0	D1!13(	-9"1)7U4I6$"#'>#,$3-!5-(,$-.>,$3@O-	I!3)/()	*A$"+17*"1+(&% 4>$@;1<1E1= #$"1	,package:utem_book_thrift/view/cart_page.dart�������탼���x���Ń�ˁ���ȂS�΃Ѓ��у��߃��������1��Yfile:///C:/Users/User/Documents/Y3S2/FYP/utem_book_thrift/lib/view/edit_profile_page.dart��import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+class EditProfilePage extends StatefulWidget {
+  const EditProfilePage({super.key});
+
+  @override
+  State<EditProfilePage> createState() => _EditProfilePageState();
+}
+
+class _EditProfilePageState extends State<EditProfilePage> {
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  
+  @override
+  void initState() {
+    super.initState();
+    final user = Supabase.instance.client.auth.currentUser;
+    _nameController.text = user?.userMetadata?['fullName'] ?? 'Student';
+    _emailController.text = user?.email ?? 'student@student.utem.edu.my';
+  }
+  
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF9F9F9),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFF9F9F9),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'Edit Profile',
+          style: TextStyle(
+            color: Colors.black87,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        centerTitle: false,
+        titleSpacing: 0, // Align closer to back button like screenshot
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 24.0),
+        child: Column(
+          children: [
+            // Avatar with Edit Badge
+            Center(
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const CircleAvatar(
+                    radius: 50,
+                    backgroundColor: Colors.black12,
+                    child: Icon(Icons.person, size: 60, color: Colors.white),
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    right: -4,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF0038FF), // Blue match
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.edit,
+                        size: 14,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 48),
+
+            // Form Fields
+            _buildInputField(
+              controller: _nameController,
+              icon: Icons.person_outline,
+            ),
+            const SizedBox(height: 16),
+            _buildInputField(
+              controller: _emailController,
+              icon: Icons.mail_outline,
+              enabled: false, // Email is usually read-only
+            ),
+            const SizedBox(height: 16),
+            
+            // Gender Field (Dropdown/Selector style)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.black12),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: const [
+                  Text(
+                    'Gender',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, color: Colors.black87, size: 20),
+                ],
+              ),
+            ),
+            const SizedBox(height: 48),
+            
+            // Save Changes Button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  // TODO: Implement save logic
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Changes saved successfully!'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                  Navigator.pop(context);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0038FF),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  elevation: 0,
+                ),
+                child: const Text(
+                  'Save Changes',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInputField({
+    required TextEditingController controller,
+    required IconData icon,
+    bool enabled = true,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.black12),
+      ),
+      child: TextField(
+        controller: controller,
+        enabled: enabled,
+        style: const TextStyle(fontSize: 14, color: Colors.black87),
+        decoration: InputDecoration(
+          prefixIcon: Icon(icon, color: Colors.black87, size: 20),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 16),
+        ),
+      ),
+    );
+  }
+}
+�� (9/&C=IJ<IJ '02E3#)H	#O&)& 5N&87@0)$"-(+*(,(<(6Q)%8;C"&$-N(#&% 0>$D;*1<1E1< #"$"1	/!03	 E%C$D	4package:utem_book_thrift/view/edit_profile_page.dart�������탼���x���Ń�ˁ����ȃe�����S�΃Ѓ1��Yfile:///C:/Users/User/Documents/Y3S2/FYP/utem_book_thrift/lib/view/login_signup_page.dart� H�import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:async';
+import 'student_home_page.dart';
+import 'admin_home_page.dart';
+import 'signup_success_page.dart';
+
+class LoginSignupPage extends StatefulWidget {
+  const LoginSignupPage({super.key});
+
+  @override
+  State<LoginSignupPage> createState() => _LoginSignupPageState();
+}
+
+class _LoginSignupPageState extends State<LoginSignupPage> {
+  bool isLogin = true; // Toggle state
+
+  // Controllers
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _nameController = TextEditingController();
+  
+  String? selectedRole;
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  // --- LOGIC: LOGIN ---
+  Future<void> _handleLogin() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill in all fields')));
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final AuthResponse res = await Supabase.instance.client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+
+      if (res.user != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Login Successful!'), behavior: SnackBarBehavior.floating));
+        
+        final role = res.user?.userMetadata?['role'] ?? 'student';
+        
+        if (role == 'Admin' || role == 'admin') {
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const AdminHomePage()));
+        } else {
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const StudentHomePage()));
+        }
+      }
+    } on AuthException catch (error) {
+      if (mounted) {
+        String errorMessage = error.message;
+        if (errorMessage == 'Invalid login credentials') {
+          errorMessage = 'Incorrect email or password. Please try again.';
+        }
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMessage), behavior: SnackBarBehavior.floating));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $error'), behavior: SnackBarBehavior.floating));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // --- LOGIC: SIGN UP ---
+  Future<void> _handleSignUp() async {
+    if (selectedRole == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a role')));
+      return;
+    }
+    
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (name.isEmpty || email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill in all required fields')));
+      return;
+    }
+
+    // Email Validation based on Role
+    if (selectedRole == 'Student') {
+      if (!email.endsWith('@student.utem.edu.my')) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Students must use @student.utem.edu.my email')));
+        return;
+      }
+    } else if (selectedRole == 'Staff') {
+      final staffRegex = RegExp(r'^\d{5}@utem\.edu\.my$');
+      if (!staffRegex.hasMatch(email)) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Staff email must be 5 digits followed by @utem.edu.my')));
+        return;
+      }
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final AuthResponse res = await Supabase.instance.client.auth.signUp(
+        email: email,
+        password: password,
+        data: {
+          'fullName': name,
+          'role': selectedRole,
+        },
+      );
+      
+      if (res.user != null) {
+        if (res.session == null) {
+          // Email confirmation is ON
+          if (mounted) {
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (dialogContext) {
+                StreamSubscription<AuthState>? subscription;
+                subscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+                  final AuthChangeEvent event = data.event;
+                  if (event == AuthChangeEvent.signedIn) {
+                    subscription?.cancel();
+                    Navigator.of(dialogContext).pop(); 
+                    Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => SignupSuccessPage(role: selectedRole!)));
+                  }
+                });
+
+                return AlertDialog(
+                  title: const Text('Check your email'),
+                  content: const Text('We have sent a confirmation link to your email. Please click the link to verify your account. Your account will be created once it is verified.'),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        subscription?.cancel();
+                        Navigator.of(dialogContext).pop();
+                      },
+                      child: const Text('Cancel'),
+                    )
+                  ],
+                );
+              }
+            );
+          }
+        } else {
+          // Email confirmation is OFF (Development Mode)
+          if (mounted) {
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => SignupSuccessPage(role: selectedRole!)));
+          }
+        }
+      }
+    } on AuthException catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $error')));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+
+  // --- UI BUILDING ---
+  @override
+  Widget build(BuildContext context) {
+    bool isDesktop = MediaQuery.of(context).size.width > 800;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF0F2F5),
+      body: Stack(
+        children: [
+          // Split screen layout
+          Row(
+            children: [
+              // Left Side: Image (Only visible on Desktop)
+              if (isDesktop)
+                Expanded(
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: Colors.black87,
+                      image: DecorationImage(
+                        image: AssetImage('assets/images/auth_bg.jpg'),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    child: Container(
+                      color: Colors.black.withOpacity(0.4), // Dark overlay for text readability
+                      padding: const EdgeInsets.all(60.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.start, // Moved to the top
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 100), // Give it some breathing room from the very top
+                          Text(
+                            'UTeM Book Thrift',
+                            style: GoogleFonts.montserrat(
+                              fontSize: 48,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Buy and sell academic textbooks with students or staff from UTeM. Start finding great deals on textbooks!',
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Colors.white70,
+                              height: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                
+              // Right Side: Auth Card Area
+              Expanded(
+                child: Center(
+                  child: SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Container(
+                        constraints: const BoxConstraints(maxWidth: 450),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 24,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(32.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // Top Toggle (Login / Sign Up)
+                              _buildToggle(),
+                              
+                              const SizedBox(height: 32),
+                              
+                              // Dynamic Title
+                              Text(
+                                isLogin ? 'Welcome Back' : 'Create Account',
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                isLogin ? 'Enter your credentials to access your account' : 'Join the campus marketplace community',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                              const SizedBox(height: 32),
+
+                              // Sign Up Only Fields
+                              if (!isLogin) ...[
+                                _buildTextField('Full Name', hint: 'John Doe', icon: Icons.person_outline, controller: _nameController),
+                                const SizedBox(height: 16),
+                                _buildRoleDropdown(),
+                                const SizedBox(height: 16),
+                              ],
+                              
+                              // Shared Fields
+                              _buildTextField(
+                                'Email', 
+                                hint: _getEmailHint(), 
+                                icon: Icons.mail_outline, 
+                                controller: _emailController
+                              ),
+                              const SizedBox(height: 16),
+
+                              _buildTextField('Password', hint: '••••••••', icon: Icons.lock_outline, obscureText: true, controller: _passwordController),
+                              
+                              const SizedBox(height: 32),
+
+                              // Submit Button
+                              ElevatedButton(
+                                onPressed: _isLoading ? null : (isLogin ? _handleLogin : _handleSignUp),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF023E8A),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  elevation: 0,
+                                ),
+                                child: _isLoading
+                                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                    : Text(
+                                        isLogin ? 'Sign In' : 'Create Account',
+                                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                      ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // Back Button
+          Positioned(
+            top: 16,
+            left: isDesktop ? null : 16,
+            right: isDesktop ? 16 : null, // If desktop, put it top right on the white side to be visible
+            child: IconButton(
+              icon: Icon(Icons.close, color: isDesktop ? Colors.black54 : Colors.black87),
+              onPressed: () => Navigator.pop(context),
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.white,
+                shape: const CircleBorder(),
+                elevation: 2,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggle() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F2F5),
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => isLogin = true),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: isLogin ? Colors.white : Colors.transparent,
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: isLogin ? [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, 2))] : [],
+                ),
+                child: Center(
+                  child: Text(
+                    'Login',
+                    style: TextStyle(
+                      fontWeight: isLogin ? FontWeight.bold : FontWeight.w500,
+                      color: isLogin ? Colors.black87 : Colors.black54,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => isLogin = false),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: !isLogin ? Colors.white : Colors.transparent,
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: !isLogin ? [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, 2))] : [],
+                ),
+                child: Center(
+                  child: Text(
+                    'Sign Up',
+                    style: TextStyle(
+                      fontWeight: !isLogin ? FontWeight.bold : FontWeight.w500,
+                      color: !isLogin ? Colors.black87 : Colors.black54,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRoleDropdown() {
+    return DropdownButtonFormField<String>(
+      isExpanded: true,
+      decoration: InputDecoration(
+        filled: true,
+        fillColor: const Color(0xFFF9F9F9),
+        prefixIcon: const Icon(Icons.badge_outlined, color: Colors.black38, size: 20),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Colors.black12),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFF023E8A)),
+        ),
+      ),
+      hint: const Text('Select Your Role', style: TextStyle(color: Colors.black54, fontSize: 14)),
+      value: selectedRole,
+      icon: const Icon(Icons.keyboard_arrow_down, color: Colors.black54),
+      items: ['Student', 'Staff'].map((String value) {
+        return DropdownMenuItem<String>(
+          value: value,
+          child: Text(value),
+        );
+      }).toList(),
+      onChanged: (newValue) {
+        setState(() {
+          selectedRole = newValue;
+        });
+      },
+    );
+  }
+
+  Widget _buildTextField(String label, {required String hint, bool obscureText = false, required TextEditingController controller, required IconData icon}) {
+    return TextField(
+      controller: controller,
+      obscureText: obscureText,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.black54, fontSize: 14),
+        hintText: hint,
+        hintStyle: const TextStyle(color: Colors.black26, fontSize: 14),
+        filled: true,
+        fillColor: const Color(0xFFF9F9F9),
+        prefixIcon: Icon(icon, color: Colors.black38, size: 20),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Colors.black12),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFF023E8A)),
+        ),
+      ),
+    );
+  }
+
+  String _getEmailHint() {
+    if (isLogin) return 'example@utem.edu.my';
+    if (selectedRole == 'Student') return 'matricno@student.utem.edu.my';
+    if (selectedRole == 'Staff') return 'staffno@utem.edu.my';
+    return 'example@utem.edu.my';
+  }
+}
+�� (19!#/&C='473 #&06-n'
+W	)��	C	2np
+'-;K
+����7' i.06=w&%5��*;)��'
+K 	#& ))=_<;,8��$9�� &0;3:��
+'gi7'>0!<$5-.H+&a;%XF$h 0;,;36&��.,5+,0$;(J3/C''E.:(?)L(>.:/$M80?9#!9$��809#!:51��<6<!//*8;=!:��:/.iALAUi0#2��,Pk)!)j[7+/-	!(1	$; C+F;��&OH$< C+G;��&PI	 ,#,WR+2?+2B	cJ7)#	�� #JI,AR+2?+2B	/J?"4package:utem_book_thrift/view/login_signup_page.dart)���클�x���Ń1��e��������	���������ȂS�΃Ѓ�˃������߃�����������[file:///C:/Users/User/Documents/Y3S2/FYP/utem_book_thrift/lib/view/signup_success_page.dart��import 'package:flutter/material.dart';
+import 'student_home_page.dart';
+import 'admin_home_page.dart';
+
+class SignupSuccessPage extends StatelessWidget {
+  final String role;
+
+  const SignupSuccessPage({super.key, required this.role});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF9F9F9),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.black87, width: 1.5),
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.check,
+                    size: 48,
+                    color: Colors.black87,
+                    weight: 200,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 32),
+              Text(
+                role == 'Admin' ? 'You\'re All Set, Admin.' : 'You\'re All Set!',
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                role == 'Admin'
+                    ? 'Ready to keep the campus marketplace running smoothly? Let\'s manage some listings and assist our students.'
+                    : 'Let\'s find your semester academic textbooks or give your old ones a new home.',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.black54,
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 48),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    if (role == 'Admin') {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (context) => const AdminHomePage()),
+                      );
+                    } else {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (context) => const StudentHomePage()),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0038FF),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    'Continue',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+f (!2<'0/9;+*I%!+!*R( /)-* ��h( )-*('"+1!X1!Z3>3G3>"% &$3	6package:utem_book_thrift/view/signup_success_page.dart���������ȃ����x���Ł��2�΃ЂS���e�������Yfile:///C:/Users/User/Documents/Y3S2/FYP/utem_book_thrift/lib/view/student_home_page.dart� L�import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'edit_profile_page.dart';
+import 'cart_page.dart';
+import 'welcome_page.dart';
+
+class StudentHomePage extends StatefulWidget {
+  const StudentHomePage({super.key});
+
+  @override
+  State<StudentHomePage> createState() => _StudentHomePageState();
+}
+
+class _StudentHomePageState extends State<StudentHomePage> {
+  int _selectedIndex = 0;
+  String _searchQuery = '';
+  List<Map<String, String>> savedBooks = [];
+
+  final List<Map<String, String>> textbooks = [
+    {
+      'title': 'Database Design',
+      'sellerName': 'Derek Watakovski',
+      'coverUrl': 'https://picsum.photos/seed/book1/400/300',
+      'avatarUrl': 'https://picsum.photos/seed/avatar1/100/100',
+    },
+    {
+      'title': 'Software Engineering',
+      'sellerName': 'Jenny Lee',
+      'coverUrl': 'https://picsum.photos/seed/book2/400/300',
+      'avatarUrl': 'https://picsum.photos/seed/avatar2/100/100',
+    },
+    {
+      'title': 'Data Structure',
+      'sellerName': 'Derek Watakovski',
+      'coverUrl': 'https://picsum.photos/seed/book3/400/300',
+      'avatarUrl': 'https://picsum.photos/seed/avatar1/100/100',
+    },
+    {
+      'title': 'Philosophy',
+      'sellerName': 'Jenny Lee',
+      'coverUrl': 'https://picsum.photos/seed/book4/400/300',
+      'avatarUrl': 'https://picsum.photos/seed/avatar2/100/100',
+    },
+  ];
+
+  String get _userName {
+    final user = Supabase.instance.client.auth.currentUser;
+    return user?.userMetadata?['fullName'] ?? 'Student';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    bool isDesktop = MediaQuery.of(context).size.width > 800;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF9F9F9),
+      // Only show the app bar on the Home View (index 0)
+      appBar: _selectedIndex == 0
+          ? AppBar(
+              backgroundColor: const Color(0xFFF9F9F9),
+              elevation: 0,
+              automaticallyImplyLeading: false, // Hide back button
+              centerTitle: true,
+              title: Image.asset(
+                'assets/images/logo.png',
+                height: 60, // Increased size
+                errorBuilder: (context, error, stackTrace) {
+                  // Fallback text if logo is missing or path is wrong
+                  return const Text(
+                    'UTeM Book Thrift',
+                    style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+                  );
+                },
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.shopping_bag_outlined, color: Colors.black87),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CartPage(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(width: 8),
+              ],
+            )
+          : null, // Hide AppBar for Search view to make room for Search bar
+      
+      body: isDesktop
+          ? Row(
+              children: [
+                NavigationRail(
+                  backgroundColor: Colors.white,
+                  selectedIndex: _selectedIndex,
+                  onDestinationSelected: (int index) {
+                    setState(() {
+                      _selectedIndex = index;
+                    });
+                  },
+                  labelType: NavigationRailLabelType.all,
+                  selectedIconTheme: const IconThemeData(color: Color(0xFF0038FF)),
+                  selectedLabelTextStyle: const TextStyle(color: Color(0xFF0038FF), fontWeight: FontWeight.bold),
+                  destinations: const [
+                    NavigationRailDestination(
+                      icon: Icon(Icons.home_outlined),
+                      selectedIcon: Icon(Icons.home),
+                      label: Text('Home'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.search_outlined),
+                      selectedIcon: Icon(Icons.search),
+                      label: Text('Search'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.bookmark_outline),
+                      selectedIcon: Icon(Icons.bookmark),
+                      label: Text('Saved'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.person_outline),
+                      selectedIcon: Icon(Icons.person),
+                      label: Text('Profile'),
+                    ),
+                  ],
+                ),
+                const VerticalDivider(thickness: 1, width: 1, color: Colors.black12),
+                Expanded(
+                  child: IndexedStack(
+                    index: _selectedIndex,
+                    children: [
+                      _buildHomeView(),
+                      _buildSearchView(),
+                      _buildSavedView(),
+                      _buildProfileView(),
+                    ],
+                  ),
+                ),
+              ],
+            )
+          : IndexedStack(
+              index: _selectedIndex,
+              children: [
+                _buildHomeView(),
+                _buildSearchView(),
+                _buildSavedView(),
+                _buildProfileView(),
+              ],
+            ),
+
+      bottomNavigationBar: isDesktop ? null : BottomAppBar(
+        color: Colors.white,
+        shape: const CircularNotchedRectangle(),
+        notchMargin: 8.0,
+        child: SizedBox(
+          height: 60.0,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: <Widget>[
+              IconButton(
+                icon: Icon(
+                  Icons.home_outlined,
+                  color: _selectedIndex == 0 ? Colors.black : Colors.black45,
+                ),
+                onPressed: () => setState(() => _selectedIndex = 0),
+              ),
+              IconButton(
+                icon: Icon(
+                  Icons.search_outlined,
+                  color: _selectedIndex == 1 ? Colors.black : Colors.black45,
+                ),
+                onPressed: () => setState(() => _selectedIndex = 1),
+              ),
+              IconButton(
+                icon: Icon(
+                  Icons.bookmark_outline,
+                  color: _selectedIndex == 2 ? Colors.black : Colors.black45,
+                ),
+                onPressed: () => setState(() => _selectedIndex = 2),
+              ),
+              IconButton(
+                icon: Icon(
+                  Icons.person_outline,
+                  color: _selectedIndex == 3 ? Colors.black : Colors.black45,
+                ),
+                onPressed: () => setState(() => _selectedIndex = 3),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHomeView() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Hi, $_userName',
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Explore Textbooks',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 24),
+          _buildTextbookGrid(textbooks),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchView() {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+        child: Column(
+          children: [
+            // Search Bar
+            TextField(
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                });
+              },
+              decoration: InputDecoration(
+                hintText: 'Search',
+                hintStyle: const TextStyle(color: Colors.black38, fontSize: 14),
+                prefixIcon: const Icon(Icons.search_outlined, color: Colors.black38),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.filter_alt_outlined, color: Colors.black38),
+                  onPressed: () {
+                    // TODO: Open Filter Dialog
+                  },
+                ),
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.black12),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.blue),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            // Conditionally show empty state or results
+            Expanded(
+              child: _searchQuery.trim().isEmpty 
+                  ? _buildEmptySearchState() 
+                  : SingleChildScrollView(child: _buildTextbookGrid(textbooks)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptySearchState() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(
+          Icons.search,
+          size: 100,
+          color: Colors.black26,
+        ),
+        const SizedBox(height: 24),
+        const Text(
+          'Need a Specific Book?',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Search by title or filter by faculty to find exactly what you need for this semester.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.black54,
+            height: 1.5,
+          ),
+        ),
+        const SizedBox(height: 80), // To offset it a bit visually up
+      ],
+    );
+  }
+
+  Widget _buildSavedView() {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+        child: Column(
+          children: [
+            // Top Bar
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Saved Textbooks',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+                if (savedBooks.isNotEmpty)
+                  TextButton(
+                    onPressed: () {
+                      // setState(() { savedBooks.clear(); }); // For testing empty state
+                    },
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(50, 30),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text(
+                      'Manage',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF0038FF),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            // Content
+            Expanded(
+              child: savedBooks.isEmpty
+                  ? _buildEmptySavedState()
+                  : SingleChildScrollView(
+                      child: _buildTextbookGrid(savedBooks),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptySavedState() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(
+          Icons.bookmark_border,
+          size: 100,
+          color: Colors.black26,
+        ),
+        const SizedBox(height: 24),
+        const Text(
+          'Saved for Later',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'A space for the books you\'ve\nbookmarked. Come back anytime to\nkeep track of the books you\'re eyeing.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.black54,
+            height: 1.5,
+          ),
+        ),
+        const SizedBox(height: 80),
+      ],
+    );
+  }
+
+  Widget _buildProfileView() {
+    final userEmail = Supabase.instance.client.auth.currentUser?.email ?? 'student@student.utem.edu.my';
+    
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Top Section
+            const Text(
+              'My Profile',
+              style: TextStyle(
+                fontSize: 18, // Matches the screenshot size
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 24),
+            
+            // Avatar and Info
+            Column(
+              children: [
+                const CircleAvatar(
+                  radius: 40,
+                  backgroundColor: Colors.black12,
+                  child: Icon(Icons.person, size: 50, color: Colors.white),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  _userName,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  userEmail,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.black54,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const EditProfilePage(),
+                      ),
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    side: const BorderSide(color: Colors.black26),
+                    padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 8),
+                  ),
+                  child: const Text(
+                    'Edit Profile',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextButton.icon(
+                  onPressed: () async {
+                    await Supabase.instance.client.auth.signOut();
+                    if (context.mounted) {
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(builder: (context) => const WelcomePage()),
+                        (route) => false,
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.logout, color: Colors.redAccent, size: 18),
+                  label: const Text(
+                    'Log Out',
+                    style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextbookGrid(List<Map<String, String>> displayBooks) {
+    bool isDesktop = MediaQuery.of(context).size.width > 800;
+    int crossAxisCount = isDesktop ? 4 : 2;
+
+    return GridView.builder(
+      physics: const NeverScrollableScrollPhysics(), // Prevent scrolling inside SingleChildScrollView
+      shrinkWrap: true, // Take only needed space
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        childAspectRatio: 0.65,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+      ),
+      itemCount: displayBooks.length,
+      itemBuilder: (context, index) {
+        final book = displayBooks[index];
+        return _buildTextbookCard(book);
+      },
+    );
+  }
+
+  Widget _buildTextbookCard(Map<String, String> book) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16.0),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Cover Image
+          Expanded(
+            child: ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16.0),
+                topRight: Radius.circular(16.0),
+              ),
+              child: Image.network(
+                book['coverUrl']!,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+          // Details
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  book['title']!,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        book['sellerName']!,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.black45,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    CircleAvatar(
+                      radius: 8,
+                      backgroundImage: NetworkImage(book['avatarUrl']!),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+�N (9!/&C=-0"(>A'!>A!(>A!>A<9'>0:"8D!"*.=G%(ZX"$)@*M 117".:Tr(/76+/98-/::,/88.V'+ (*)+%"$#%<1> 'NE)NE*NE(NE	"M8$+%%!+#&)	O#(+$QV(V"0)I3:G3:D(92.Q	$3!$#)##c'#F	OA%$"1)+$Z107G' (&52((,+=	#3!!$)##v'#$	iO: =-'($3L,*"1++*"+, "$)G33>CV%$&$-,!(C+4!V*U%\(	F>,g2?( 	&&*)	8!33(	8501$##1<"*"1+3+E#-0(1%9."!I	4package:utem_book_thrift/view/student_home_page.dart)���������˃����x���ł������S�΃ЃՃ؃ڃ܃�䃁�ȃ��!�߃e���,����������Tfile:///C:/Users/User/Documents/Y3S2/FYP/utem_book_thrift/lib/view/welcome_page.dart� Wvimport 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'login_signup_page.dart';
+import 'browse_page.dart';
+
+class WelcomePage extends StatefulWidget {
+  const WelcomePage({super.key});
+
+  @override
+  State<WelcomePage> createState() => _WelcomePageState();
+}
+
+class _WelcomePageState extends State<WelcomePage> {
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _howItWorksKey = GlobalKey();
+  final GlobalKey _servicesKey = GlobalKey();
+  final GlobalKey _contactKey = GlobalKey();
+
+  void _scrollTo(GlobalKey key) {
+    if (key.currentContext != null) {
+      Scrollable.ensureVisible(
+        key.currentContext!,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    bool isDesktop = MediaQuery.of(context).size.width > 800;
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(80.0),
+        child: _buildTopNavBar(context, isDesktop),
+      ),
+      body: SingleChildScrollView(
+        controller: _scrollController,
+        child: Column(
+          children: [
+            _buildHeroSection(context, isDesktop),
+            _buildFeaturesSection(isDesktop),
+            _buildHowItWorksSection(isDesktop),
+            _buildContactSection(isDesktop),
+            _buildFooter(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopNavBar(BuildContext context, bool isDesktop) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: isDesktop ? 60.0 : 20.0, vertical: 10.0),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Colors.black12)),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Logo & Brand (Clickable to scroll to top)
+            MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: () {
+                  _scrollController.animateTo(
+                    0,
+                    duration: const Duration(milliseconds: 500),
+                    curve: Curves.easeInOut,
+                  );
+                },
+                child: Row(
+                  children: [
+                    Image.asset('assets/images/logo.png', height: 60, errorBuilder: (c, e, s) => const Icon(Icons.menu_book, color: Color(0xFF0038FF))),
+                  ],
+                ),
+              ),
+            ),
+            
+            // Desktop Links
+            if (isDesktop)
+              Row(
+                children: [
+                  _navLink('Home', () => _scrollController.animateTo(0, duration: const Duration(milliseconds: 500), curve: Curves.easeInOut)),
+                  _navLink('Browse', () => Navigator.push(context, MaterialPageRoute(builder: (context) => const BrowsePage()))),
+                  _navLink('Services', () => _scrollTo(_servicesKey)),
+                  _navLink('How it Works', () => _scrollTo(_howItWorksKey)),
+                  _navLink('Contact', () => _scrollTo(_contactKey)),
+                ],
+              ),
+            
+            // Login Button
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginSignupPage()),
+                );
+              },
+              icon: const Icon(Icons.person_outline, size: 18),
+              label: const Text('Login / Sign Up', style: TextStyle(fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF023E8A),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                elevation: 0,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _navLink(String title, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: TextButton(
+        onPressed: onTap,
+        child: Text(
+          title,
+          style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w500),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeroSection(BuildContext context, bool isDesktop) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.black87, // Neutral dark fallback before image loads
+        image: DecorationImage(
+          image: const AssetImage('assets/images/hero_bg.png'),
+          fit: BoxFit.cover,
+          alignment: const Alignment(0.0, 0.1), // Shifts the image down
+          colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.6), BlendMode.darken),
+        ),
+      ),
+      padding: EdgeInsets.symmetric(
+        horizontal: isDesktop ? 60.0 : 24.0,
+        vertical: isDesktop ? 100.0 : 60.0,
+      ),
+      child: TweenAnimationBuilder(
+        tween: Tween<double>(begin: 0, end: 1),
+        duration: const Duration(milliseconds: 1000),
+        curve: Curves.easeOutCubic,
+        builder: (context, value, child) {
+          return Opacity(
+            opacity: value,
+            child: Transform.translate(
+              offset: Offset(0, 30 * (1 - value)),
+              child: child,
+            ),
+          );
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              'Welcome to UTeM Book Thrift!',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.montserrat(
+                fontSize: 48,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                height: 1.2,
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Smart pricing, easy searching. Your campus\nmarketplace for preloved academic textbooks.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 18,
+                color: Colors.white70,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 40),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const BrowsePage()));
+                  },
+                  icon: const Icon(Icons.search, size: 18),
+                  label: const Text('Browse Textbooks', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF023E8A),
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    elevation: 0,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    if (_howItWorksKey.currentContext != null) {
+                      Scrollable.ensureVisible(
+                        _howItWorksKey.currentContext!,
+                        duration: const Duration(milliseconds: 500),
+                        curve: Curves.easeInOut,
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.arrow_forward, size: 18),
+                  label: const Text('How it Works', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white, width: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeaturesSection(bool isDesktop) {
+    return Container(
+      key: _servicesKey,
+      width: double.infinity,
+      color: Colors.white,
+      padding: EdgeInsets.symmetric(
+        horizontal: isDesktop ? 60.0 : 24.0,
+        vertical: 80.0,
+      ),
+      child: isDesktop
+          ? Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: AnimatedFeatureCard(icon: Icons.search, bgColor: Colors.blue.shade50, iconColor: Colors.blue, title: 'Easy to Find', desc: 'Browse thousands of preloved textbooks listed directly by the UTeM Bookstore.')),
+                const SizedBox(width: 40),
+                Expanded(child: AnimatedFeatureCard(icon: Icons.attach_money, bgColor: Colors.green.shade50, iconColor: Colors.green, title: 'Best Prices', desc: 'Save money on academic materials without compromising on quality.')),
+                const SizedBox(width: 40),
+                Expanded(child: AnimatedFeatureCard(icon: Icons.local_shipping_outlined, bgColor: Colors.purple.shade50, iconColor: Colors.purple, title: 'Quick Pickup', desc: 'Pay securely online and collect your books instantly at the campus bookstore.')),
+              ],
+            )
+          : Column(
+              children: [
+                AnimatedFeatureCard(icon: Icons.search, bgColor: Colors.blue.shade50, iconColor: Colors.blue, title: 'Easy to Find', desc: 'Browse thousands of preloved textbooks listed directly by the UTeM Bookstore.'),
+                const SizedBox(height: 40),
+                AnimatedFeatureCard(icon: Icons.attach_money, bgColor: Colors.green.shade50, iconColor: Colors.green, title: 'Best Prices', desc: 'Save money on academic materials without compromising on quality.'),
+                const SizedBox(height: 40),
+                AnimatedFeatureCard(icon: Icons.local_shipping_outlined, bgColor: Colors.purple.shade50, iconColor: Colors.purple, title: 'Quick Pickup', desc: 'Pay securely online and collect your books instantly at the campus bookstore.'),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildHowItWorksSection(bool isDesktop) {
+    return Container(
+      key: _howItWorksKey,
+      width: double.infinity,
+      color: const Color(0xFFF9F9F9),
+      padding: EdgeInsets.symmetric(
+        horizontal: isDesktop ? 60.0 : 24.0,
+        vertical: 80.0,
+      ),
+      child: Column(
+        children: [
+          const Text('How UTeM Book Thrift Works', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.black87)),
+          const SizedBox(height: 60),
+          isDesktop
+              ? Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: _buildStepCard('Step 1', 'Secure Login', 'Login with your student or staff email for verified access.', Icons.lock_outline, Colors.teal.shade50, Colors.teal)),
+                    const SizedBox(width: 24),
+                    Expanded(child: _buildStepCard('Step 2', 'Drop off Books', 'Bring your old textbooks to the bookstore. We handle the listing!', Icons.inventory_2_outlined, Colors.indigo.shade50, Colors.indigo)),
+                    const SizedBox(width: 24),
+                    Expanded(child: _buildStepCard('Step 3', 'Browse & Buy', 'Find the textbooks you need for your semester online.', Icons.shopping_bag_outlined, Colors.orange.shade50, Colors.orange)),
+                    const SizedBox(width: 24),
+                    Expanded(child: _buildStepCard('Step 4', 'Collect & Read', 'Pick up your purchased books at the store and ace your classes.', Icons.school_outlined, Colors.red.shade50, Colors.red)),
+                  ],
+                )
+              : Column(
+                  children: [
+                    _buildStepCard('Step 1', 'Secure Login', 'Login with your student or staff email for verified access.', Icons.lock_outline, Colors.teal.shade50, Colors.teal),
+                    const SizedBox(height: 32),
+                    _buildStepCard('Step 2', 'Drop off Books', 'Bring your old textbooks to the bookstore. We handle the listing!', Icons.inventory_2_outlined, Colors.indigo.shade50, Colors.indigo),
+                    const SizedBox(height: 32),
+                    _buildStepCard('Step 3', 'Browse & Buy', 'Find the textbooks you need for your semester online.', Icons.shopping_bag_outlined, Colors.orange.shade50, Colors.orange),
+                    const SizedBox(height: 32),
+                    _buildStepCard('Step 4', 'Collect & Read', 'Pick up your purchased books at the store and ace your classes.', Icons.school_outlined, Colors.red.shade50, Colors.red),
+                  ],
+                ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStepCard(String step, String title, String desc, IconData icon, Color bgColor, Color iconColor) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          width: 60,
+          height: 60,
+          decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle),
+          child: Icon(icon, size: 28, color: iconColor),
+        ),
+        const SizedBox(height: 16),
+        Text('$step: $title', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87), textAlign: TextAlign.center),
+        const SizedBox(height: 8),
+        Text(desc, style: const TextStyle(fontSize: 13, color: Colors.black54, height: 1.5), textAlign: TextAlign.center),
+      ],
+    );
+  }
+
+  Widget _buildFooter() {
+    return Container(
+      width: double.infinity,
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(vertical: 24.0),
+      child: const Center(
+        child: Text(
+          '© 2026 UTeM Book Thrift. All rights reserved.',
+          style: TextStyle(color: Colors.black54, fontSize: 12),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContactSection(bool isDesktop) {
+    return Container(
+      key: _contactKey,
+      width: double.infinity,
+      color: const Color(0xFFF0F4F8), // Soft blue-grey background matching your screenshot
+      padding: EdgeInsets.symmetric(
+        horizontal: isDesktop ? 60.0 : 24.0,
+        vertical: 80.0,
+      ),
+      child: Column(
+        children: [
+          const Text('Contact', style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.black87)),
+          const SizedBox(height: 16),
+          const Text(
+            'Feel free to reach out to us with any inquiries, feedback, or support.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 16, color: Colors.black54, height: 1.5),
+          ),
+          const SizedBox(height: 60),
+          _buildContactCard(isDesktop),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContactCard(bool isDesktop) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 10))],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: isDesktop
+            ? IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(flex: 2, child: _buildContactSidebar()),
+                    Expanded(flex: 3, child: _buildNewContactForm()),
+                  ],
+                ),
+              )
+            : Column(
+                children: [
+                  _buildContactSidebar(),
+                  _buildNewContactForm(),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _buildContactSidebar() {
+    return Container(
+      padding: const EdgeInsets.all(40),
+      decoration: const BoxDecoration(
+        color: Color(0xFF023E8A), // Deep professional blue
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Contact Information', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          const Text('Reach out to us directly for any academic material queries or support.', style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.5)),
+          const SizedBox(height: 40),
+          _buildSidebarInfoRow(Icons.phone, '06-1926280\n(UTeM Bookstore)'),
+          const SizedBox(height: 24),
+          _buildSidebarInfoRow(Icons.mail, 'bookthrift@utem.edu.my'),
+          const SizedBox(height: 24),
+          _buildSidebarInfoRow(Icons.location_on, 'UTeM Bookstore,\nUniversiti Teknikal Malaysia Melaka\nHang Tuah Jaya, 76100\nDurian Tunggal, Melaka.'),
+          const SizedBox(height: 24),
+          _buildSidebarInfoRow(Icons.access_time, 'Mon - Fri: 8:00 AM - 5:00 PM\nBreak (Mon - Thu): 1:00 PM - 2:00 PM\nBreak (Fri): 12:15 PM - 2:45 PM'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSidebarInfoRow(IconData icon, String text) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: Colors.white, size: 20),
+        const SizedBox(width: 16),
+        Expanded(child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.5))),
+      ],
+    );
+  }
+
+  Widget _buildNewContactForm() {
+    return Padding(
+      padding: const EdgeInsets.all(40.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: _buildUnderlineTextField('Your Name', 'e.g. John Doe')),
+              const SizedBox(width: 32),
+              Expanded(child: _buildUnderlineTextField('Your Email', 'e.g. example@utem.edu.my')),
+            ],
+          ),
+          const SizedBox(height: 32),
+          _buildUnderlineTextField('Your Subject', 'e.g. Feedback on service'),
+          const SizedBox(height: 32),
+          _buildUnderlineTextField('Message', 'Write your message here...', maxLines: 4),
+          const SizedBox(height: 40),
+          ElevatedButton(
+            onPressed: () {},
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF023E8A),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Send Message', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUnderlineTextField(String label, String hint, {int maxLines = 1}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: Colors.black54, fontSize: 12, fontWeight: FontWeight.w600)),
+        TextField(
+          maxLines: maxLines,
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: const TextStyle(color: Colors.black38, fontSize: 16),
+            contentPadding: const EdgeInsets.symmetric(vertical: 8),
+            border: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.black12)),
+            enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.black12)),
+            focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF023E8A))),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class AnimatedFeatureCard extends StatefulWidget {
+  final IconData icon;
+  final Color bgColor;
+  final Color iconColor;
+  final String title;
+  final String desc;
+
+  const AnimatedFeatureCard({
+    super.key,
+    required this.icon,
+    required this.bgColor,
+    required this.iconColor,
+    required this.title,
+    required this.desc,
+  });
+
+  @override
+  State<AnimatedFeatureCard> createState() => _AnimatedFeatureCardState();
+}
+
+class _AnimatedFeatureCardState extends State<AnimatedFeatureCard> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedScale(
+        scale: _isHovered ? 1.05 : 1.0,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: widget.bgColor,
+                shape: BoxShape.circle,
+                boxShadow: _isHovered
+                    ? [
+                        BoxShadow(
+                          color: widget.iconColor.withOpacity(0.3),
+                          blurRadius: 15,
+                          spreadRadius: 2,
+                          offset: const Offset(0, 5),
+                        )
+                      ]
+                    : [],
+              ),
+              child: Icon(widget.icon, size: 36, color: widget.iconColor),
+            ),
+            const SizedBox(height: 24),
+            Text(widget.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87), textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            Text(widget.desc, style: const TextStyle(fontSize: 14, color: Colors.black54, height: 1.5), textAlign: TextAlign.center),
+          ],
+        ),
+      ),
+    );
+  }
+}
+�, (1!+";5A0.-"& 5!	!'>%44	#'3.0-	AZ'C	=90&/A-������GME! T@c/:/SW	6=V	C!K @IZ	%-,	$06$+(39.+--%(j+ '(;%"j<v33>W["+%"A08E1Cr33KW[	1%-	@<��+��+���,��,��3&%-	��&D@��/��/��/����0��0��0��	q5M9$��#{	;;A	0\%-	u&V)P&(	-!1t	1BFF**	")'<	6&��&M&F&��&��	<43#m	"+6W)c&P&Z&-8-QUl	S4o'ME_fi	3KE'99(5$9;)'(&#D*+6K(��(��	/package:utem_book_thrift/view/welcome_page.dart,�#�%��&�߃����(�+�������������x���ŀ����ԃ�ˁ����Ȅ	���-�0�S�΃Ё��2����2�4  �v  ��  �� "; TJ �� �� �. � (� x��
+ �5        �?        �?� ���6 �9�;�� �=�>�?�@�A??????�?�� �=�>	�?	�@	�A
+�E� 7 (7 ���v �G�H�I�J�( �L �N7  7 ��v �G�H�I�J7 b7 ��v �G�H�I�J7 [7 ��v �G�H�I�J� ��� �9�;�7 w�v �G�H"�I�J�� �P!�Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N#7 x7 �v �G�H%�I&�J7 g��v �G�H(�I�J)7 d��v �G�H+�I&�J,7 � �G� �� �b.�c/�d �e0�f 7 ��7 �	�v �G�H2�I3�J4�� �h1�i �j �k �l �m �n �o �p �q �r �s �t �L �N57 7 �
+�v �G�H7�I8�J97 Z��v �G�H;�I�J<7 �v �G�H>�I�J? �L �N@7 � ���� �bB�c/�d �eC�f �������?�� �=E�>�?�@�A�7 ,7 �v �GG�HH�II�J4�� �hD�i �j �k �l �m �nF�o �p �q �r �s �t �L �NJ7 +7 ��v �GG�HL�IM�JN�v �GG�H�I�J      8@       @� �vQ�wR�xQ�yR� �� �9T�;U�7 ��� �{X�� �}C�~F� �� �� �� ��Q��Y�� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� 7 5�v �GG�H[�I�J�� �PW�Q �RZ�S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N\7 =��v �GG�H^�I�J_� �� ��Q�� �L �N`�� �=�>�?�@�A�������?�� �=c�>�?�@�A� ��$ �9e�;f7 � �]�� �bh�c/�d �e0�f       D@QQQQQQ�?�� �=k�>�?�@�A7 J�v �GG�Hm�I�J4�� �hi�ij�j �k �l �m �nl�o �p �q �r �s �t �L �Nn7 K�v �GG�Hp�I�J_� �� ��R�� �L �Nq�      ,@�� �}C�~l� �� �� �� ��t�� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� 7 L�v �GG�Hv�I�J�� �Ps�Q �Ru�S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �Nw`�|orx7 G�v �GG�Hz�I3�J)7 @��v �GG�H|�I&�J}7 S�v �GG�H�I�J_� �� ��Q�� �L �N��      0@7 W�v �GG�H���I�J_� �� ������ �L �N��7 `�v �GG�H���I�J_� �� ������ �L �N���v �GG�H+�I�J_� �� ������ �L �N��7 h�v �GG�H���I�J_� �� ������ �L �N��      @� �v���w���x���y���?�� �=���>�?�@�A��� �9T�;����� �}C�~F� �� �� �� ��t�� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� 7 u7 �v �GG�H���I���J�� �P���Q �R���S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��7 v��v �GG�H���I�J��7 r��v �GG�H���I3�J��7 k�v �GG�H���I&�J}7 ~�v �GG�H���I�J_� �� ������ �L �N��7 ���v �GG�H���I�J_� �� ������ �L �N���� �9�;��7 ��7 �v �GG�H���I���J)7 ��7 ��v �GG�H���I���J��7 ���v �GG�H���II�J_� ������ �� �L �N��7 ���v �GG�H���I���J)7 ���v �GG�H���I���J��7 ���v �GG�H���I&�J��7 ���v �GG�H���I�J_� �� ��R�� �L �N���4 �����7 ��7 #�v �GG�H���I���J�� �P���Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N����3 �9e�;��7 �=	 �w ������" �9e�;��7 ��7 ��v �GG�H�ɄI�ʄJ���J ���� �� �� �� �� �� �� ���Ą� �� �� �� ���Ƅ�0�� �� �� ���ȄL �N���7 ���v �GG�H�τI���J�� �P�΄Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��7 ���v �GG�H�҄I�ʄJ���J ���ф� �� �� �� �� �� �� ���Ą� �� �� �� ���Ƅ�0�� �� �� ���ȄL �N��7 � ��� �b�Մc/�d �e0�f 7 ���v �GG�H�ׄI8�J4�� �h�քi���j �k �l �m �n�o �p �q �r �s �t �L �N����� �}C�~� �� �� �� �� ��Y�� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� 7 ���v �GG�H�܄I�ʄJ�� �P�ڄQ �R�ۄS �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��7 ��7 !� �v �GG�H�߄I���J��7 ���!�v �GG�H��I&�J��7 ���v �GG�H��I�J_� �� ��R�� �L �N��      @@7 ���v �GG�H��I�J_� �� ���鄜 �L �N��      ��"7 ���v �GG�H��I�J�� �P��Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��7 ��7 �v �GG�H��I��J���J ���� �� �� �� �� �� �� ���Ą� �� �� �� ���Ƅ�0�� �� �� ���ȄL �N��� �v�w���x�y���#�� �}C�~ � �� �� �� ������Y�� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� 7 ���v �GG�H���I�ʄJ�� �P���Q �R���S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��7 ���$�v �GG�H���I3�J��7 ���v �GG�H���I&�J_7 ���v �GG�H��I�J_� �� ��j�� �L �N�7 2�v �GG�H��I�J)7 0�%�v �GG�H��I&�J�7 &�v �GG�H�	�I�J<TUVW� �v���w�x�yR      (@�� �}C�~F� �� �� �� �����Y�� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� 7 �7 �v �GG�H��I��J7 ��&�v �GG�H��I�J��f ����0��C�f ���� �� �� �}C�~d� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �=�>�?�@�A�'�$ �9�;�      ��� ������������� �� �v���w��x���y�7 �%�(�v �GG�H�"�I��J�#7 ��v �GG�H�%�I�J}� �v���w�x���y�� �}C�~d� �� �� �� ��t�� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� 7 �D�v �GG�H�)�I���J7 � �S�� �b�+�c/�d �e0�f 7 �F�v �GG�H�-�II�J4�� �h�,�i �j �k �l �m �nF�o �p �q �r �s �t �L �N�.7 �J�v �GG�H�0�I3�J7 �H7 �)�v �GG�H�2�I�3�J�47 �B�*�v �GG�H�6�I�J�77 �A�+�v �GG�H�9�I��J�:7 �:�v �GG�H�<�I�J}�,�� �}C�~F� �� �� �� �� ��Y�� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �-7 �v �G�@�H���I�A�J�� �P�>�Q �R�?�S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N�B�v �G�@�H�ʄI&�J�.�� �9�;�E�� 	�� �� �� �� �� ���� �� �� 7 � �4�� �b�H�c/�d �e0�f 7 :�v �G�@�H�J�I8�J4�� �h�I�i �j �k �l �m �n �o �p �q �r �s �t �L �N�K7 � �J�� �b�M�c/�d �e0�f 7 ;7 %�v �G�@�H�O�I�P�J4�� �h�N�i �j �k �l �m �n �o �p �q �r �s �t �L �N�Q�/7 <�v �G�@�H�T�I�ʄJ�� �P�S�Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N�U�� �ρL�ЁR�� �� �ӁV�� ��07 � ��� �b�X�c/�d �e0�f 7 ?�v �G�@�H�Z�I8�J4�� �h�Y�i �j �k �l �m �n �o �p �q �r �s �t �L �N�[7 � ��� �b�]�c/�d �e0�f �v �G�@�H|�I�P�J4�� �h�^�i �j �k �l �m �n �o �p �q �r �s �t �L �N�_�07 A�v �G�@�H�b�I�ʄJ�� �P�a�Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N�c�� �ρ\�Ё`�� �� �Ӂd�� ��0`���W�e�4 ����� �v�w�x�yQ7 N@�v �G�@�H�i�I^�J�j1 �L �N�k7 � �<�� �b�m�c/�d �e0�f 7 T�v �G�@�H�o�I�J4�� �h�n�i �j �k �l �m �nb�o �p �q �r �s �t �L �N�p7 I�v �G�@�H�r�I�J9�v �G�@�Hz�I�ʄJ�7 E�v �G�@�H�u�I�A�J��7 D�v �G�@�H�w�I8�J��7 -�1�v �G�@�H�y�I���J�z�2�v �G�@�H;�II�J�|�� ������ �� �ۀ��� �L �N�}7 \�3�v �G�@�H��I���J���v �G�@�H�I���J���v �G�@�HL�I&�J��7 f�v �G�@�H���I&�J����  �4�� �9e�;��      @�� ���၉�v �G�@�H7�I�y�J�j1 �L �N��7 ��7 �v �G�@�H���I���J4�� �h�n�i �j �k �l �m �nb�o �p �q �r �s �t �L �N��7 z�v �G�@�H���I�J97 o�v �G�@�H���I��J}�� ��0� �5�� �9���;���������?�� �=���>�?�@�A7 ���v �G�@�H���II�J47 ���v �G�@�H���I�JN      H@�v �G�@�H���I>�J_� ������ �� �L �N���v �G�@�H���II�J4�v �G�@�H���I�JN7 ���v �G�@�H���IM�J��7 ���v �G�@�H���I�J_7 ��7 /�6�v �G�@�H���I���J���v �G�@�H��I�J<      Y@7 ���v �G�@�H���I�J4�� �h�I�i���j �k �l �m �nd�o �p �q �r �s �t �L �N��7 ���v �G�@�H���I�J_� �� ��Q�� �L �N���7      2@�� �}C�~F� �� �� �� ������Y�� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� 7 ���v �G�@�H���I�J�� �P���Q �R���S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��7 ���v �G�@�H���I�J_� �� ��R�� �L �N���8�_ �9�;7 ���v �G�@�H���I�J�� �P���Q �Ru�S �T���U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��7 ���v �G�@�H�I�J)�v �G�@�H�߄I��J,� �vQ�wQ�xQ�yQ7 ���v �G�@�H�ƄI��J�7 ���v �G�@�H�ȄI�J�� �vQ�w���xQ�y���97 ���v �G�@�H�̄I�J�� �P�˄Q �R���S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��7 ���v �G�@�H�τI�J_� �� ��Q�� �L �N��7 � �b�� �b�҄c/�d �e0�f       I@�v �G�@�H���I���J4�� �h�ӄi�Ԅj �k �l �m �nb�o �p �q �r �s �t �L �N���:�v �G�@�H��II�J���� ��ք怑�� �� �� �� �� ��j�� �� �L �N��7 ���v �G�@�H�ڄII�J_� �� ������ �L �N���� �}C�~F� �� �� �� ������Y�� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� 7 ���v �G�@�H�ބI���J�v �G�@�H��II�J_� �� ������ �L �N���� �}C�~l� �� �� �� ����� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �v �G�@�H��I���J7 ���v �G�@�H��II�J_� �� ��R�� �L �N��� �v��w���x��y���;�� �}C�~� �� �� �� �����Y�� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� 7 ���v �G�@�H��I�J�� �P��Q �R��S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��7 ���v �G�@�H��I���J}7 ���v �G�@�H��II�J_� �� ������ �L �N��7 ���-�v �G�@�H��I[�J���� �L �N���� ��d����g���� �v���wR�x���yR�<�� �}C�~F� �� �� �� ����� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� 7 � �v �G�@�H���I�J�� �P���Q �R���S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��7 ���=�v �G�@�H���I���J��7 ��v �G�@�H� �II�J_� �� ������ �L �N�7 �	�v �G�@�H��Iz�J�( �L �N�7 � ��� �b��c/�d �e0�f �?�� �=�>�?k�@��A7 ���������?�� �=�>�?��@��A7 ���?�?�� �=�>�?��@��A�������?�� �=�>��?�@�A`��`��+�	�
+���X��� ���=�>�?��@��A7 �v �G�@�H��I��J4�� �h��i���j �k �l �m �n��o �p �q �r �s �t �L �N��>�� �}C�~�� �� �� �� �� ��Y�� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� 7 ��v �G�@�H��I�J�� �P��Q �R��S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N�7 ��v �G�@�H��I�A�J��7 ���v �G�@�H��I&�J)7 ���v �G�@�H�!�I�J)�v �G�@�H�ׄI��J�7 ���?�v �G�@�H�$�I�J�%�� �� �� �������� ����� ���(���(���)���)7 � ���� �b�+�c/�d �e0�f 7 �;7 "�v �G�@�H�-�I�.�J4�� �h�,�i�Ԅj �k �l �m �nb�o �p �q �r �s �t �L �N�/7 �8�v �G�@�H�1�I���J}7 �6�@�v �G�@�H�3�I���J�47 �5�v �G�@�H�6�I�J��� �v��w��x��y��� �}C�~ � �� �� �� ��t��Y�� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �A�� �9�;�:�v �G�@�H�)�I>�J�v �G�@�H�9�I���J)7 �?�v �G�@�H�>�I�J�7 �2�v �G�@�H�@�IM�J)7 �,�v �G�@�H�B�I�J}7 � �B�v �G�@�H�D�I>�J�E�C�D�v �G�H�H^�I���J�� �P�G�Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N�I�E7 >�v �G�H�H�L�I���J�� �P�K�Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N�M�F7 B�v �G�H�H�P�I�A�J�� �P�O�Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N�Q�v �G�H�H|�I&�J���8�v �G�H�H�r�I�b�J�T�� �L �N�U�?�?�� �=�>�W�?�X�@k�A��7 M�v �G�H�H�[�I�A�J�� �P�Z�Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N�\�v �G�H�H�w�I&�J���G�v �G�H�H�T�I��J�_�H�� � �a7 i7 4�v �G�H�H�d�I�e�J�� �P�c�Q �R�?�S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N�f�I�v �G�H�H���I�ʄJ�h�J�v �G�H�H+�I3�J�j�K�v �G�H�H�I&�J�l7 m�v �G�H�H�n�I�J_� ��j�� �� �L �N�o     ��@�� ���q������ �}C�~��� �� �� �� ��t�� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� 7 � �g�� �b�t�c/�d �e0�f 7 y�v �G�H�H�v�IL�J4�� �h�u�i �j �k �l �m �n���o �p �q �r �s �t �L �N�w7 � ��� �b�y�c/�d �e0�f �v �G�H�H���IL�J4�� �h�z�i �j �k �l �m �n���o �p �q �r �s �t �L �N�{�?^^^^^^�?�������?�� �=�>�}�?�~�@��A�v �G�H�H���I�A�J�#�v �G�H�H���I���J}7 q�v �G�H�H���I���J,7 p�v �G�H�H���I�J���L�v �G�H�H���I>�J���  �e�L �N��7 ���v �G�H�H���I�.�J_� ��j�� �� �L �N��7 _�v �G�H�H���I�J���v �G�H�H���I���J4�� �h�Y�i �j �k �l �m �nF�o �p �q �r �s �t �L �N���M7 R�v �G�H�H���I���J�� �P���Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N���v �G�H�H���I|�J���J ������ �� �� �� �� �� �� �� �� �� �� �� ���Ƅ�0�� �� �� ���ȄL �N��7 ��7 �v �G�H�H���I���JN7 � �\�� �b���c/�d �e0�f �v �G�H�H���I���J4�� �h���i �j �k �l �m �nF�o �p �q �r �s �t �L �N���N7 ���v �G�H�H���I���J�� �P���Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N���v �G�H�H���I|�J���J ������ �� �� �� �� �� �� �� �� �� �� �� ���Ƅ�0�� �� �� ���ȄL �N���v �G�H�H���I���JN7 � �}�� �b���c/�d �e0�f 7 ���v �G�H�H���I���J4�� �h���i �j �k �l �m �nF�o �p �q �r �s �t �L �N���O�v �G�H�H���I���J�� �P���Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N���v �G�H�H���I|�J���J ������ �� �� �� �� �� �� �� �� �� �� �� ���Ƅ�0�� �� �� ���ȄL �N��7 ���v �G�H�H���I���JN7 ���v �G�H�H���I���J_� ������ �� �L �N���v �G�H�H�I�J�P7 ���v �G�H�H���I���J�� �P���Q �RZ�S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��7 ���v �G�H�H���I���J_� �� ��R�� �L �N���v �G�H�H���I�J�v �G�H�H���I���J_� �� ��Q�� �L �N���v �G�H�H���I�J��7 ���v �G�H�H���I3�J)7 ���v �G�H�H�I�3�J�7 ���v �G�H�H�ĄI���J��7 ���v �G�H�H�ƄI&�J��7 Y�v �G�H�H�ȄI�J<7 � ��� �b�ʄc/�d �e0�f       4@7 ���v �G�H�H�̈́II�J4�� �h�˄i�̄j �k �l �m �nF�o �p �q �r �s �t �L �N��7 ���v �G�H�H�ЄII�J_� ��R�� �� �L �N���Q�v �G�H�H�
+�II�J�� �P�ӄQ �R���S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N���v �G�H�H�τI&�J���v �G�H�H�܄I�J_� �� ���鄜 �L �N��7 ���v �G�H�H�لI�J_� �� ��Q�� �L �N���v �G�H�H�̄I�J_� �� ��Q�� �L �N���v �G�H�H��I�J_� �� ���鄜 �L �N���R7 ���v �G�H�H��I�ʄJ�� �P���Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N���v �G�H�H��I3�J��7 ���v �G�H�H��I&�J_7 ���v �G�H�H��I�J)7 ���v �G�H�H��I��J��v �G�H�H�ɄI�J}�� �}C�~F� �� �� �� ��t��Y�� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� 7 ��7 	�v �G�H�H��I��J�v �G�H�H���I�J_� �� ����� �L �N��      $@� �v��w��x��y��� �v�w�x�y���?======�?�� �=�>���?��@���A�� �=�>�?�@�A�?______�?�?�� �=�>���?���@���A7 �X� �{��� �{�7 ���v �G�H�H� �I�J7 ���v �G�H�H��I3�J��7 ���v �G�H�H��I�3�J}7 ���S�v �G�H�H��IM�J��v �G�H�H��I�J)7 ��v �G�H�H�
+�I>�J�E�T� �9�;�7 �0�v �G�H�H��I�J�h7 �.�v �G�H�H��I���J�4� �	b�
+ � � � � � ����v �G�H�H�>�I���J4�� �h���i�̄j �k �l �m �n���o �p �q �r �s �t �L �N��� �������� �vR�wR�xR�yR7 �>�v �G�H�H��I�A�JN7 �9�v �G�H�H��I���J}�U�v �G�H�H�3�I���J��V�v �G�H�H�B�I�3�J�7 �+�v �G�H�H��I���J��� �v���w���x���y��7 �S�v �G�H�H�"�I�ʄJ7 �R�v �G�H�H�$�I>�J��� �vR�w���xR�y���� �}C�~��� �� �� �� ����Y�� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� 7 �`�v �G�H�H�(�I�ʄJ7 �Z�v �G�H�H�*�I>�J}7 �O�v �G�H�H�,�I���J��7 �d�v �G�H�H�.�II�J_� �� ��R�� �L �N�/�� �}C�~�Y� �� �� �� ������Y�� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� 7 �e�v �G�H�H�2�I���J7 �f�v �G�H�H�4�II�J_� �� ������ �L �N�5� �v�w��x�y��W�� �}C�~ � �� �� �� �� ��Y�� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� 7 �r�v �G�H�H�:�I�.�J�� �P�8�Q �R�9�S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N�;7 �i�v �G�H�H�=�I���J��7 �g�v �G�H�H�?�I���J_7 �L�v �G�H�H�A�I�3�J)�v �G�H�H�0�I���J�7 �'�v �G�H�H�D�I��J)7 �!�v �G�H�H�F�I�J}�X�v �G�H�H�y�II�J4�� �hD�i �j �k �l �m �nF�o �p �q �r �s �t �L �N�I�v �G�H�HH�IM�JN�Y�� �}C�~F� �� �� �� ���̄�Y�� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �v �G�H�H��I3�J�� �P�L�Q �R�M�S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N�N7 )�v �G�H�H�P�I�J7 '�v �G�H�H�R�I�J<� �v��w��x��y���v �G�H�Hz�I�J4�� �h���i���j �k �l �m �nd�o �p �q �r �s �t �L �N�U�v �G�H�Hv�I�J_� �� ��Q�� �L �N�W�Z�v �G�H�H�[�I�J�� �P�Y�Q �R�M�S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N�Z7 U�v �G�H�H�\�I�J_� �� ����� �L �N�]�[      �?�� �}C�~l� �� �� �� ��t�� �� �� �� �� ���`�� �� �� �� �� �� �� �� �� �� �� �� �� 7 V�v �G�H�H�b�I�J�� �P�_�Q �R�a�S �T���U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N�c�v �G�H�H���I�J_� �� ������ �L �N�e�\�� �}C�~ � �� �� �� ���������� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �v �G�H�H���I�ʄJ�� �P�g�Q �R�h�S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N�i�v �G�H�H�I3�J���v �G�H�H���I&�J_�v �G�H�H�w�I�J)�v �G�H�H�P�I��J��v �G�H�H�b�I�J,�]�v �G�H�H7�I>�J�p� �v�w�x�y���� ���ဎ� �9�;�� ��d���`��g���7 ���^�v �G�H�H�v�I&�J�w�v �G�H�H���I�A�J�h�v �G�H�H�߄I&�J�47 ���v �G�H�H�{�I�J_� ������ �� �L �N�|7 ���v �G�H�H�~�I�J7 ���v �G�H�H���I���J_� �� ������ �L �N���v �G�H�H�҄I�J�v �G�H�H�ׄI���J_� �� ����� �L �N��7 � � �{���� �}C�~� �� �� �� ���������� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �v �G�H�H�܄I�J7 ���v �G�H�H���I3�J)�v �G�H�H���I&�J��7 � ��� �b���c/�d �e0�f 7 ���v �G�H�H���I��J4�� �h���i �j �k �l �m �n��o �p �q �r �s �t �L �N���v �G�H�H���I&�JN�v �G�H�H���I�J���v �G�H�H���I��J��v �G�H�H���I�J}� �vQ�w�̄xQ�y��      ��� ���თ�� ��Q��Q� �����������)���)�_�  �9�;���`7 ��� �{���� �}C�~l� �� �� �� ���������� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �v �G�H�H��II�J�� �P���Q �R���S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��7 ��v �G�H�H���I���J7 ���v �G�H�H���I&�J���v �G�H�H��I�J_� �� ������ �L �N���a7 ��v �G�H�H���I�J�� �P���Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��7 ��v �G�H�H���I��J���J ������ �� �� �� �� �� �� ���Ą� �� �� �� ���Ƅ�0�� �� �� ���ȄL �N���b�v �G�H�H�"�I�ʄJ�� �P���Q �R�h�S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��7 ��v �G�H�H���I3�J��7 ��v �G�H�H���I&�J_�v �G�H�H��I�J)�v �G�H�H��I��J�%�v �G�H�H��I�J}�c�v �G���H�	�II�J4�� �hD�i �j �k �l �m �nF�o �p �q �r �s �t �L �N���v �G���H�P�IM�JN�v �G���H�P�I3�J�� �P���Q �R���S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N���v �G���H�.�I�J� �v��wQ�x��yQ�" �9�;�      N@�v �G���H|�I�A�J4�� �h�^�i�Äj �k �l �m �nb�o �p �q �r �s �t �L �N���v �G���H^�I���J���� ��ń怑�� �� �� �� �� ��Ԅ� �� �L �N��� �	�
+ � � � � � ���7 � ��� �b�Ʉc/�d �e0�f 7 $�v �G���Hp�I�˄J4�� �h�ʄit�j �k �l �m �nb�o �p �q �r �s �t �L �N���v �G���H�u�I�A�J}�v �G���H�P�I�J��v �G���H�J�I3�J�7 9�v �G���H�фI&�J,�v �G���H�\�I�J_� �� ������ �L �N���v �G���H��I�J_� �� ������ �L �N��7 � ���� �b�ׄc/�d �e0�f �v �G���H�I�J_� �� ������ �L �N���d�v �G���H���I�J�� �P�ۄQ �R���S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��7 � �_�� �b�ބc/�d �eC�f �v �G���H���I�J4�� �h�߄i�̄j �k �l �m �nF�o �p �q �r �s �t �L �N��`�|�݃�7 l�v �G���H��I3�J��7 e�v �G���H��I&�J}�v �G���H���I�J_� �� ������ �L �N���e7 ���v �G���H��I�J�� �P��Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��7 ���v �G���H��I��J���J ���섥 �� �� �� �� �� �� ���Ą� �� �� �� ���Ƅ�0�� �� �� ���ȄL �N���f�� �}C�~ � �� �� �� ��t������ �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �v �G���H���I�ʄJ�� �P���Q �R��S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N���v �G���H7�I3�J��7 }�v �G���H���I&�J_7 6�v �G���H���I�J)�v �G���H�e�I&�J��v �G���H�I�J<�v �G���H�{�II�J4�v �G���H���I��J�#�v �G���H��I�J}�g�h�v �G���H�P�Im�J�� �P���Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N� 7 8�v �G���H�P�I��J���J ����� �� �� �� �� �� �� �� �� �� �� �� ���Ƅ�0�� �� �� ���ȄL �N��i�v �G���H���Iv�J�� �P��Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��v �G���H���I�J�J���J ����� �� �� �� �� �� �� ���Ą� �� �� �� ���Ƅ�0�� �� �� ���ȄL �N����v �G���H�O�I��J�
+a �L �N����v �G���H^�I��J�� �L �N�7 F�v �G���H��I��J�v �G���H��I�e�J���v �G���Hm�I��J�v �G���Hm�I�e�J���j�v �G���H�o�Im�J�� �P��Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��v �G���H�o�I��J���J ����� �� �� �� �� �� �� �� �� �� �� �� ���Ƅ�0�� �� �� ���ȄL �N��k7 ]�v �G���H��Im�J�� �P��Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��v �G���H��I��J���J ����� �� �� �� �� �� �� �� �� �� �� �� ���Ƅ�0�� �� �� ���ȄL �N��l�v �G���H+�Iv�J�� �P� �Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N�!�v �G���H+�I�J�J���J ���"�� �� �� �� �� �� �� �� �� �� �� �� ���Ƅ�0�� �� �� ���ȄL �N�#�m7 j�v �G���H�&�Iv�J�� �P�%�Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N�'�v �G���H�&�I�J�J���J ���(�� �� �� �� �� �� �� �� �� �� �� �� ���Ƅ�0�� �� �� ���ȄL �N�)�n�o�D ��+�9�;�,7 �����v �G���H�.�I���J�/�p�v �G���H���I�J�� �P�1�Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N�2�q�v �G���H���I�.�J�� �P�4�Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N�5�v �G���H���I�˄J�� �P�O�Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N�7�v �G���H���I>�J���v �G���H���I���J�_7 ��7 X�v �G���H�;�I�<�J�/7 Q�v �G���H�ĄI�>�J�v �G���H�ĄI�Z�J���v �G���H��I�>�J�v �G���H��I�Z�J���r�� ��C� � �4 �����s� �9T�;�F�t� �9�;�H�� ��D� � ����E� � �G�!0�"�#�$�I�%0�&0�u�� �9�;�K� �	F�
+�J� � � � � ��L� �v�Äw�Äx�Äy���� �9�;���v �G���H�!�I���J_� �� ������ �L �N�P
+�*�v �G���H�لI��J7 ���v �G���H�T�I���J_� �� ������ �L �N�U�vvvvvvv�?�� �=�X�>�?�@�A�� �}C�~�Y� �� �� �� ������ �� �� �� �� ���`�� �� �� �� �� �� �� �� �� �� �� �� �� �v �G���H��I���J�� �P�W�Q �R�Z�S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N�[�v �G���H�
+�I�ʄJ)7 ���v �G���H�^�I�A�J}�v �G���H���I���J}�v �G���H�ɄI���J��      |@�� ���b������ ����R�v �G���H� �I�P�J_� �� ���鄜 �L �N�e�v �G���H� �I��J7 �
+�v �G���H�h�I�P�J_� �� ��R�� �L �N�i7 ��v �G���H�k�I��J�v �G���H���I�P�J_� �� ���鄜 �L �N�m�v �G���H���I�R�J_� �� ������ �L �N�o7 ��v �G���H�q�I�R�J_� �� ������ �L �N�r7 �#�v �G���H�t�I�P�J_� �� ������ �L �N�u7 � ��� �b�w�c/�d �e0�f �v �G���H�D�I�P�J_� �� ���鄜 �L �N�y�w�+ �9�;�{       @7 �4�x�v �G���H�~�I�o�J�� �.�|�/�}�0 �1 �2 �3 �4 �5 �6 �8 �9 �:b�; �< �= �L �N���v �G���H�~�I�y�J_� ���̄��̄����L �N���v �G���H�6�I�R�J7 �*�v �G���H���I��J���v �G���H��I�.�J)�v �G���H��I�J�7 ���v �G���H���I�ʄJ}7 ���v �G���H���I�A�J�7 ���v �G���H���I���J��v �G���H��I���J,�v �G���H��I�J���v �G���H�~�I���J��7 � �j�� �b���c/�d �e0�f 7 �K�v �G���H���I>�J4�[ �?�A��v �G���H�0�I�3�JN�v �G���H�-�I���J��v �G���H���I&�J��v �G���H���I�J<�� ����}7 �l�v �G���H���I���J7 �k�v �G���H���I���J,�v �G���H�.�I3�J}7 �b�v �G���H���I�3�J�j7 �a�v �G���H���I���J��7 ���v �G���H���I���J7 ���v �G���H���I���J,7 �z�v �G���H���I3�J}7 �x�v �G���H���I�3�J�j7 �w�v �G���H���I���J��7 �_�v �G���H���I��J���v �G���H�*�I�J}7 � ��� �b���c/�d �e0�f XXXXXX�?�� �=���>�?�@�A7 ���v �G���H���I��J4�� �h���i�̄j �k �l �m �n���o �p �q �r �s �t �L �N���� ��������g����� ���Y����g����y7 ���v �G���H���I�J�� �P���Q �Ru�S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��7 ���v �G���H���I�J4�� �h�,�i �j �k �l �m �nl�o �p �q �r �s �t �L �N��7 ���v �G���H�IM�J7 ���v �G���H�ĄI�J�47 ���z�v �G���H�ƄI�J��7 ���v �G���H�ɄI>�J47 ���v �G���H�˄I�J�#7 � �V�� �b�̈́c/�d �e0�f       i@�{�v �G�ЄH8�I���J4�� �h�΄i���j �k�τl �m �nF�o �p �q �r �s �t �L �N���v �G�ЄH�A�I�ʄJ,�� �C�E�D �E ���҄L �N���v �G�ЄH>�I�J}�v �G�ЄH�P�I>�J_� �� ���鄜 �L �N���v �G�ЄH�	�I�J�v �G�ЄH���I>�J_� �� ������ �L �N���v �G�ЄH��I�J�v �G�ЄH�O�I>�J_� �� ������ �L �N��7 C�v �G�ЄH�ބIz�J�
+a �L �N��7 H�v �G�ЄH��Iz�J�� �L �N���|�v �G�ЄH�\�I�J�� �P��Q �R��S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N���v �G�ЄH�L�I���J���v �G�ЄH�T�I�J_�v �G�ЄH���IM�J)�v �G�ЄH�I�J��v �G�ЄH��I&�J,�v �G�ЄH�I�J<�}�v �G��H�u�I�J�� �P�c�Q �R�?�S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N���v �G��H|�I�A�J�h�v �G��H�[�I��J4�� �h���i �j �k �l �m �nF�o �p �q �r �s �t �L �N����v �G��H���I[�J���� �L �N���v �G��Hv�I���JN�v �G��H���II�J_� ��R�� �� �L �N���v �G��H�O�I&�J7 � ��� �b���c/�d �e0�f �v �G��H��I8�J4�� �h���i �j �k �l �m �n �o �p �q �r �s �t �L �N��7 � ��� �b���c/�d �e0�f �v �G��H�n�I�P�J4�� �h���i �j �k �l �m �n �o �p �q �r �s �t �L �N� ��7 n�v �G��H��I�ʄJ�� �P��Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��� �τ��Ѕ�� �� �Ӆ�� ��07 � �K�� �b��c/�d �e0�f �v �G��H���I8�J4�� �h��i �j �k �l �m �n �o �p �q �r �s �t �L �N�	�v �G��H���I�P�J4�� �h�u�i �j �k �l �m �n �o �p �q �r �s �t �L �N���7 s�v �G��H��I�ʄJ�� �P��Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��� �υ
+�Ѕ�� �� �Ӆ�� ��07 � ���� �b��c/�d �e0�f �v �G��H���I8�J4�� �h��i �j �k �l �m �n �o �p �q �r �s �t �L �N�7 � ���� �b��c/�d �e0�f �v �G��H"�I�P�J4�� �h��i �j �k �l �m �n �o �p �q �r �s �t �L �N��~�v �G��H%�I�ʄJ�� �P��Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��� �υ�Ѕ�� �� �Ӆ�� ��07 {�v �G��H��I8�J4�� �h�Y�i �j �k �l �m �n �o �p �q �r �s �t �L �N�7 |�v �G��H�!�I�P�J4�� �h�^�i �j �k �l �m �n �o �p �q �r �s �t �L �N�"�v �G��H���I�ʄJ�� �P�a�Q �R �S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N�$�� �υ �Ѕ#�� �� �Ӆ%�� ��0`������&�v �G��H���I���J�z7 ���v �G��H�)�II�J�|�� ������ �� �ۀ��� �L �N�*�v �G��H��I���J���v �G��H2�I���J���v �G��H��I&�J���v �G��H���I&�J��7 ���v �G��H�0�II�J47 ���v �G��H�2�I�JN�v �G��H�II�J4�v �G��H�߄I�JN7 ���v �G��H�6�II�J47 ���v �G��H�8�I�JN�v �G��H�~�II�J47 ���v �G��H�;�I�JN�v �G��H�ƄIM�J���v �G��H�v�I�J_�v �G��H���I���J��7 7�v �G��H�@�I�J<�� �}C�~F� �� �� �� ���������� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �v �G��H�܄I���J�v �G��H�τI���J_� �� ��R�� �L �N�D��� �}C�~�� �� �� �� ��Q��Y�� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �v �G��H��I���J�� �P�F�Q �R�G�S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N�H�v �G��H�ބI���J_� �� ��Q�� �L �N�J�v �G��H�
+�I��J)�v �G��H�̈́I�J��� �}C�~��� �� �� �� ��t�� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �v �G��H��I���J4�� �h��i �j �k �l �m �n���o �p �q �r �s �t �L �N�O7 � �h�� �b�Q�c/�d �e0�f 7 ���v �G��H�S�I��J4�� �h�R�i �j �k �l �m �n���o �p �q �r �s �t �L �N�T7 ���v �G��H�V�I8�JN� �v�w�x�y||||||�?�������?�� �=�>�Y�?�~�@�Z�Awwwwww�?�������?�?�� �=�>�\�?�]�@�^�A�?YYYYYY�?�� �=�>�`�?�a�@	�A�?�������?�������?�� �=�>�c�?�d�@�e�A�������?�� �=�>c�?�g�@��A�������?�������?~~~~~~�?�� �=�>�i�?�j�@�k�A�?�?�������?�� �=�>�m�?�n�@�o�A�?�������?ZZZZZZ�?�� �=�>�q�?�r�@�s�A�?YYYYYY�?�?�� �=�>�u�?�v�@�w�A7 ���?�������?444444�?�� �=�>�z�?�{�@�|�A`��`��
+��[+�_�
+�b�B�f��h���l���pX�t���x�y�}�� ��~�=�>�i�?�j�@�k�A�� �������g����v �G��H���I&�J�#7 ��v �G��H���I�J_� �� ��Q�� �L �N���v �G��H��I>�J��v �G��H��I&�J���v �G��H���I�J)�v �G��H��I��J�7 ���v �G��H���I�J�%7 ��v �G��H���I�J4�� �h�u�i���j �k �l �m �nd�o �p �q �r �s �t �L �N��7 ��v �G��H���I�J_� �� ��Q�� �L �N����7 ��v �G��H���I�J�� �P���Q �R���S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��7 �&�v �G��H���I�J_� �� ��R�� �L �N������ �}C�~l� �� �� �� ����� �� �� �� �� ���`�� �� �� �� �� �� �� �� �� �� �� �� �� �v �G��H�D�I�J�� �P���Q �R���S �T���U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��      T@�v �G��H��I�J_� �� ������ �L �N��7 ��v �G��H���I�J)���v �G��H�>�II�J�� �P���Q �R�G�S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��      >@�� ���Ԅᅤ���c �9e�;������ �}C�~� �� �� �� ��������� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� 7 �Q�v �G��H���I�.�J�� �P���Q �R���S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N���v �G��H�2�I�J��7 �<�v �G��H���I&�J��7 �\�v �G��H���I�J_� �� ��Q�� �L �N���v �G��H���I>�J�7 �^�v �G��H���I&�J���v �G��H��I�J)7 �7�v �G��H���I��J��v �G��H�3�I�J�%7 �o�v �G��H���I�J4�� �h��i���j �k �l �m �nd�o �p �q �r �s �t �L �N��7 �t�v �G��H���I�J_� �� ��Q�� �L �N����7 �u�v �G��H���I�J�� �P���Q �R���S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��7 �}�v �G��H�ĄI�J_� �� ��R�� �L �N����7 �~�v �G��H�ȄI�J�� �P�ǄQ �R���S �T���U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��7 ���v �G��H�˄I�J_� �� ������ �L �N���v �G��H���I�J)��7 ���v �G��H�ЄI�J�� �P�τQ �R���S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��7 ���v �G��H�ӄI�J_� �� ��Q�� �L �N��7 ���v �G��H�քI���J4�� �h�^�i�Ԅj �k �l �m �nb�o �p �q �r �s �t �L �N���v �G��H���II�J���� ��؄怑�� �� �� �� �� ��j�� �� �L �N��7 ���v �G��H�ۄII�J_� �� ������ �L �N���v �G��H�I���J7 ���v �G��H�߄II�J_� �� ������ �L �N��7 ���v �G��H��I���J7 ���v �G��H��II�J_� �� ������ �L �N���v �G��H�ɄI[�J���� �L �N��7 ���v �G��H��I�J�� �P���Q �R���S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��7 ���v �G��H��I���J��7 ���v �G��H��II�J_� �� ������ �L �N��7 ���v �G��H��Iz�J�( �L �N��7 ���v �G��H��I��J4�� �h��i���j �k �l �m �n��o �p �q �r �s �t �L �N��7 ���v �G��H���I�J�� �P��Q �R��S �T �U �V �W �X �Y �Z �[ �\ �] �^ �_ �` �L �N��7 ���v �G��H���I�A�J��7 ���v �G��H���I&�J)7 ���v �G��H���I�J_� �� ���鄜 �L �N��7 ���v �G��H��I�J)�v �G��H��I��J�7 ���v �G��H��I�J�%7 ���v �G��H��I>�J�E�� ��������� ���������)���)7 ��v �G��H�
+�I�A�J�h7 ��v �G��H��I�3�J�47 ��v �G��H��I���J���� �}C�~F� �� �� �� ��������� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� 7 �%�v �G��H��I���J7 �/�v �G��H��II�J_� �� ��R�� �L �N��� �}C�~��� �� �� �� ���� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� �� 7 �4�v �G��H��I�ʄJ7 �3�v �G��H��I>�J��7 �>�v �G��H��I��J_� ������ �� �L �N�7 �?�v �G��H��I>�J��7 �0�v �G��H� �I���J��7 �"�v �G��H�"�I�3�J)7 � �v �G��H�$�I���J�7 ��v �G��H�&�I�
