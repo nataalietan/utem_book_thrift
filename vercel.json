@@ -1,0 +1,11 @@
+{
+  "buildCommand": "bash vercel.sh",
+  "outputDirectory": "build/web",
+  "framework": null,
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/"
+    }
+  ]
+}
