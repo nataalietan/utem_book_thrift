@@ -1,8 +1,13 @@
 #!/bin/bash
 
 # Download Flutter
-echo "Downloading Flutter..."
-git clone https://github.com/flutter/flutter.git -b stable
+echo "Checking for Flutter..."
+if [ -d "flutter" ]; then
+  echo "Flutter is already installed!"
+else
+  echo "Downloading Flutter..."
+  git clone https://github.com/flutter/flutter.git -b stable
+fi
 
 # Add flutter to path
 export PATH="$PATH:`pwd`/flutter/bin"
